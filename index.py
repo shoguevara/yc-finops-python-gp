@@ -38,6 +38,7 @@ def intermhostslist(hosts,voc):
 
 def transform(inputcsv,intermhostslist):
     df1 = pd.DataFrame(inputcsv)
+    merged_df = df1.merge(intermhostslist, on='resource_id', how='left')
     merged_df = df1.merge(intermhostslist, on='resource_id', how='left', suffixes=('', '_intermhostslist'))
     merged_df = merged_df.loc[:, ~merged_df.columns.duplicated()]
     merged_df = merged_df.loc[:, ~(merged_df.columns.str.endswith('_intermhostslist') & merged_df.columns.str[:-15].isin(df1.columns))]
@@ -57,15 +58,22 @@ def saveresultingcsv(bucket_name,object_key,df):
 def handler(event, context):
     bucket_name = event['messages'][0]['details']['bucket_id']
     object_key = event['messages'][0]['details']['object_id']
-#    folder = event['messages'][0]['event_metadata']['folder_id']
+    folder = event['messages'][0]['event_metadata']['folder_id']
     iamtoken = context.token['access_token']    
     vocbucket = 'vocsources'
     vocobject = 'labelsvocgp.csv'
-    hosts = getgpclusterhosts('c9qhqpq4h09nbl5bfbnu',iamtoken)
     voc = getcsvfroms3(vocbucket,vocobject)
+    hosts = getgpclusterhosts(voc['clusterId'][0],iamtoken)
     intermhosts = intermhostslist(hosts,voc)
     billingcsv = getcsvfroms3(bucket_name,object_key)
     transformedcsv = transform(billingcsv,intermhosts)
+
+    for index, row in voc[1:].iterrows():
+        cluster_id = row['clusterId']
+        hosts = getgpclusterhosts(cluster_id,iamtoken)    
+        intermhosts = intermhostslist(hosts,voc)
+        intertransformedcsv = transform(billingcsv,intermhosts)
+        transformedcsv = transformedcsv.combine_first(intertransformedcsv)
     saveresultingcsv('vocsources','result.csv',transformedcsv)
     return {
         'statusCode': 200,
