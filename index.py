@@ -51,8 +51,9 @@ def saveresultingcsv(bucket_name,object_key,df):
         endpoint_url='https://storage.yandexcloud.net'
     )
     csv_buffer = StringIO()
-    df.to_csv(csv_buffer, index=False)
-    csv_string = csv_buffer.getvalue().encode('utf-8')
+    df.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
+    csv_string = csv_buffer.getvalue().encode('utf-8-sig')
+#    csv_string = csv_buffer.getvalue()
     s3.put_object(Body=csv_string, Bucket=bucket_name, Key=object_key)
 
 def handler(event, context):
@@ -74,7 +75,7 @@ def handler(event, context):
         intermhosts = intermhostslist(hosts,voc)
         intertransformedcsv = transform(billingcsv,intermhosts)
         transformedcsv = transformedcsv.combine_first(intertransformedcsv)
-    saveresultingcsv('vocsources','result.csv',transformedcsv)
+    saveresultingcsv('vocsources',object_key,transformedcsv)
     return {
         'statusCode': 200,
         'body': 'Success!',
